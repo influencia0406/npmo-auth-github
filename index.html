@@ -1,0 +1,433 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="chrome=1">
+    <title>Npmo-auth-GitHub by influencia0406</title>
+
+    <link rel="stylesheet" href="stylesheets/styles.css">
+    <link rel="stylesheet" href="stylesheets/github-light.css">
+    <meta name="viewport" content="width=device-width">
+    <!--[if lt IE 9]>
+    <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+  </head>
+  <body>
+    <div class="wrapper">
+      <header>
+        <h1>Npmo-auth-GitHub</h1>
+        <p>GitHub powered authentication/authorization strategy for npm On-Site.</p>
+
+        <p class="view"><a href="https://github.com/influencia0406/npmo-auth-github">View the Project on GitHub <small>influencia0406/npmo-auth-github</small></a></p>
+
+
+        <ul>
+          <li><a href="https://github.com/influencia0406/npmo-auth-github/zipball/master">Download <strong>ZIP File</strong></a></li>
+          <li><a href="https://github.com/influencia0406/npmo-auth-github/tarball/master">Download <strong>TAR Ball</strong></a></li>
+          <li><a href="https://github.com/influencia0406/npmo-auth-github">View On <strong>GitHub</strong></a></li>
+        </ul>
+      </header>
+      <section>
+        <h1>
+<a id="npme-auth-github" class="anchor" href="#npme-auth-github" aria-hidden="true"><span class="octicon octicon-link"></span></a>npme-auth-github</h1>
+
+<p>GitHub authentication and authorization strategy for npm Enterprise.</p>
+
+<h2>
+<a id="implementing-your-own-authentication-strategy" class="anchor" href="#implementing-your-own-authentication-strategy" aria-hidden="true"><span class="octicon octicon-link"></span></a>Implementing your own authentication strategy</h2>
+
+<h3>
+<a id="npm-enterprise-authentication-flow" class="anchor" href="#npm-enterprise-authentication-flow" aria-hidden="true"><span class="octicon octicon-link"></span></a>npm Enterprise authentication flow</h3>
+
+<ol>
+<li>npm CLI calls the frontdoor host with a request to authenticate when <code>npm login</code>
+is invoked.</li>
+<li>Frontdoor host calls the authentication webservice with a payload including
+the credentials user input.</li>
+<li>Authentication webservice calls its configured authentication strategy, passing
+the payload received to it.</li>
+<li>Authentication strategy either returns an object with a token and an user
+object to persist into the session store if authentication succeeded or no
+token and an optional message if authentication failed (see below for the
+exact API).</li>
+<li>If authentication succeeded, frontdoor passes the token back to npm CLI.
+npm CLI will further use the token to authorize its request.</li>
+</ol>
+
+<h3>
+<a id="authentication-strategy-api" class="anchor" href="#authentication-strategy-api" aria-hidden="true"><span class="octicon octicon-link"></span></a>Authentication strategy API</h3>
+
+<p>Your module needs to export an <code>Authenticator</code> property.  <code>Authenticator</code> is
+called with an object containing options for the running npm Enterprise instance
+and needs to return an object with an <code>authenticate</code> function, for example:</p>
+
+<div class="highlight highlight-source-js"><pre><span class="pl-k">var</span> Authenticator <span class="pl-k">=</span> <span class="pl-c1">exports</span>.<span class="pl-en">Authenticator</span> <span class="pl-k">=</span> <span class="pl-k">function</span>(<span class="pl-smi">opts</span>) {
+};
+
+<span class="pl-c1">Authenticator</span>.<span class="pl-c1">prototype</span>.<span class="pl-en">authenticate</span> <span class="pl-k">=</span> <span class="pl-k">function</span>(<span class="pl-smi">credentials</span>, <span class="pl-smi">cb</span>) {
+};</pre></div>
+
+<p>or</p>
+
+<div class="highlight highlight-source-js"><pre><span class="pl-c1">exports</span>.<span class="pl-en">Authenticator</span> <span class="pl-k">=</span> <span class="pl-k">function</span> (<span class="pl-smi">opts</span>) {
+  <span class="pl-k">function</span> <span class="pl-en">authenticate</span>(<span class="pl-smi">credentials</span>, <span class="pl-smi">cb</span>) {
+  }
+
+  <span class="pl-k">return</span> {
+    authenticate<span class="pl-k">:</span> authenticate
+  };
+};</pre></div>
+
+<p>The <code>authenticate</code> function is called with an object containing a <code>body</code> property,
+which is what the npm CLI called the frontdoor host with:</p>
+
+<div class="highlight highlight-source-js"><pre>{
+  body<span class="pl-k">:</span> {
+    name<span class="pl-k">:</span> <span class="pl-s"><span class="pl-pds">'</span>foobar<span class="pl-pds">'</span></span>,
+    email<span class="pl-k">:</span> <span class="pl-s"><span class="pl-pds">'</span>foobar@mycorp.com<span class="pl-pds">'</span></span>,
+    password<span class="pl-k">:</span> <span class="pl-s"><span class="pl-pds">'</span>iloveicecream<span class="pl-pds">'</span></span>
+  }
+}</pre></div>
+
+<p>Basing on this, you should authenticate the user.</p>
+
+<p>If authentication succeeds, you should call the callback with no error and an
+object with <code>token</code> and <code>user</code> properties. <code>token</code> will be passed back to npm
+CLI in order to authorize further requests, and <code>user</code> will be persisted into
+the session store.</p>
+
+<div class="highlight highlight-source-js"><pre><span class="pl-en">cb</span>(<span class="pl-c1">null</span>, {
+  token<span class="pl-k">:</span> <span class="pl-s"><span class="pl-pds">"</span>username-authtoken<span class="pl-pds">"</span></span>,
+  user<span class="pl-k">:</span> {
+    name<span class="pl-k">:</span> <span class="pl-s"><span class="pl-pds">'</span>foobar<span class="pl-pds">'</span></span>,
+    email<span class="pl-k">:</span> <span class="pl-s"><span class="pl-pds">'</span>foobar@mycorp.com<span class="pl-pds">'</span></span>
+  }
+});</pre></div>
+
+<p>If authentication isn't correct, you should call the callback with no error
+and an object with optional <code>message</code> property which will be displayed to the
+user:</p>
+
+<div class="highlight highlight-source-js"><pre><span class="pl-en">cb</span>(<span class="pl-c1">null</span>, {
+  message<span class="pl-k">:</span> <span class="pl-s"><span class="pl-pds">"</span>You don't work here anymore<span class="pl-pds">"</span></span>
+});</pre></div>
+
+<p>If authentication errors out (for example, your internal authentication server
+is down, you should call the callback with an error object:</p>
+
+<div class="highlight highlight-source-js"><pre><span class="pl-en">cb</span>(<span class="pl-k">new</span> <span class="pl-en">Error</span>(<span class="pl-s"><span class="pl-pds">'</span>Internal authentication server unreachable<span class="pl-pds">'</span></span>));</pre></div>
+
+<p>So, a basic implementation of an authentication strategy based on an abstract
+HTTP authentication service could look something like that:</p>
+
+<div class="highlight highlight-source-js"><pre><span class="pl-k">var</span> request <span class="pl-k">=</span> <span class="pl-c1">require</span>(<span class="pl-s"><span class="pl-pds">'</span>request<span class="pl-pds">'</span></span>);
+
+<span class="pl-k">var</span> Authenticator <span class="pl-k">=</span> <span class="pl-c1">exports</span>.<span class="pl-en">Authenticator</span> <span class="pl-k">=</span> <span class="pl-k">function</span>(<span class="pl-smi">opts</span>) {
+  <span class="pl-v">this</span>.<span class="pl-smi">myAuthenticationHost</span> <span class="pl-k">=</span> <span class="pl-smi">opts</span>.<span class="pl-smi">myAuthenticationHost</span>;
+};
+
+<span class="pl-c1">Authenticator</span>.<span class="pl-c1">prototype</span>.<span class="pl-en">authenticate</span> <span class="pl-k">=</span> <span class="pl-k">function</span>(<span class="pl-smi">credentials</span>, <span class="pl-smi">cb</span>) {
+  <span class="pl-en">request</span>({
+    url<span class="pl-k">:</span> <span class="pl-v">this</span>.<span class="pl-smi">myAuthenticationHost</span> <span class="pl-k">+</span> <span class="pl-s"><span class="pl-pds">'</span>/auth<span class="pl-pds">'</span></span>,
+    method<span class="pl-k">:</span> <span class="pl-s"><span class="pl-pds">'</span>POST<span class="pl-pds">'</span></span>,
+    json<span class="pl-k">:</span> <span class="pl-c1">true</span>,
+    body<span class="pl-k">:</span> {
+      username<span class="pl-k">:</span> <span class="pl-smi">credentials</span>.<span class="pl-c1">body</span>.<span class="pl-smi">username</span>,
+      password<span class="pl-k">:</span> <span class="pl-smi">credentials</span>.<span class="pl-c1">body</span>.<span class="pl-smi">password</span>
+    }
+  }, <span class="pl-k">function</span> (<span class="pl-smi">err</span>, <span class="pl-smi">res</span>, <span class="pl-smi">body</span>) {
+    <span class="pl-k">if</span> (err) {
+      <span class="pl-k">return</span> <span class="pl-en">cb</span>(err);
+    }
+
+    <span class="pl-k">if</span> (<span class="pl-smi">res</span>.<span class="pl-smi">statusCode</span> <span class="pl-k">!==</span> <span class="pl-c1">200</span>) {
+      <span class="pl-k">return</span> <span class="pl-en">cb</span>(<span class="pl-c1">null</span>, {
+        message<span class="pl-k">:</span> <span class="pl-s"><span class="pl-pds">'</span>Authentication failed<span class="pl-pds">'</span></span>
+      });
+    }
+
+    <span class="pl-k">return</span> <span class="pl-en">cb</span>(<span class="pl-c1">null</span>, {
+      token<span class="pl-k">:</span> <span class="pl-smi">body</span>.<span class="pl-smi">token</span>,
+      user<span class="pl-k">:</span> <span class="pl-smi">body</span>.<span class="pl-smi">user</span>
+    });
+  });
+};</pre></div>
+
+<h2>
+<a id="implementing-your-own-authorization-strategy" class="anchor" href="#implementing-your-own-authorization-strategy" aria-hidden="true"><span class="octicon octicon-link"></span></a>Implementing your own authorization strategy</h2>
+
+<h3>
+<a id="npm-enterprise-authorization-flow" class="anchor" href="#npm-enterprise-authorization-flow" aria-hidden="true"><span class="octicon octicon-link"></span></a>npm Enterprise authorization flow</h3>
+
+<ol>
+<li>With each request npm CLI makes it sends a token previously received from the
+frontdoor by the way of <code>npm login</code>.</li>
+<li>Unless specified otherwise, frontdoor checks the authorization token on
+every request by calling the authentication webservice.</li>
+<li>Authentication webservice calls its configured authorization strategy, passing
+the token to it and request context to it.</li>
+<li>Authorization strategy either returns whether authorization was successful
+or not.</li>
+<li>If authorization succeeded, and session store has a session for this token,
+frontdoor allows the request to go through.</li>
+</ol>
+
+<h3>
+<a id="authorization-strategy-api" class="anchor" href="#authorization-strategy-api" aria-hidden="true"><span class="octicon octicon-link"></span></a>Authorization strategy API</h3>
+
+<p>Your module needs to export an <code>Authorizer</code> property. <code>Authorizer</code> is called
+with an object containing options for the running npm Enterprise instance
+and needs to return an object with an <code>authorize</code> function, for example:</p>
+
+<div class="highlight highlight-source-js"><pre><span class="pl-k">var</span> Authorizer <span class="pl-k">=</span> <span class="pl-c1">exports</span>.<span class="pl-en">Authorizer</span> <span class="pl-k">=</span> <span class="pl-k">function</span>(<span class="pl-smi">opts</span>) {
+};
+
+<span class="pl-c1">Authorizer</span>.<span class="pl-c1">prototype</span>.<span class="pl-en">authorize</span> <span class="pl-k">=</span> <span class="pl-k">function</span>(<span class="pl-smi">credentials</span>, <span class="pl-smi">cb</span>) {
+};</pre></div>
+
+<p>or</p>
+
+<div class="highlight highlight-source-js"><pre><span class="pl-c1">exports</span>.<span class="pl-en">Authorizer</span> <span class="pl-k">=</span> <span class="pl-k">function</span> (<span class="pl-smi">opts</span>) {
+  <span class="pl-k">function</span> <span class="pl-en">authorize</span>(<span class="pl-smi">credentials</span>, <span class="pl-smi">cb</span>) {
+  }
+
+  <span class="pl-k">return</span> {
+    authorize<span class="pl-k">:</span> authorize
+  };
+};</pre></div>
+
+<p>The <code>authorize</code> function is called with an object that looks similar to this:</p>
+
+<div class="highlight highlight-source-js"><pre>{
+  path<span class="pl-k">:</span> <span class="pl-s"><span class="pl-pds">'</span>/mymodule<span class="pl-pds">'</span></span>,
+  method<span class="pl-k">:</span> <span class="pl-s"><span class="pl-pds">'</span>PUT<span class="pl-pds">'</span></span>,
+  headers<span class="pl-k">:</span> {
+    <span class="pl-c">// ...</span>
+    referer<span class="pl-k">:</span> <span class="pl-s"><span class="pl-pds">'</span>npm publish<span class="pl-pds">'</span></span>,
+    authorization<span class="pl-k">:</span> <span class="pl-s"><span class="pl-pds">'</span>Bearer ...<span class="pl-pds">'</span></span>
+  },
+  body<span class="pl-k">:</span> {
+    <span class="pl-c">// request body</span>
+  }
+}</pre></div>
+
+<p>Basing on this, you should authorize the user.</p>
+
+<p>If authorization succeeds, you should call the callback with no error and <code>true</code>.</p>
+
+<div class="highlight highlight-source-js"><pre><span class="pl-en">cb</span>(<span class="pl-c1">null</span>, <span class="pl-c1">true</span>);</pre></div>
+
+<p>If authorization fails, you should call the callback with no error and <code>false</code>.</p>
+
+<div class="highlight highlight-source-js"><pre><span class="pl-en">cb</span>(<span class="pl-c1">null</span>, <span class="pl-c1">false</span>);</pre></div>
+
+<p>If authorization errors out (for example, your internal authorization server
+is down), you should call the callback with an error object:</p>
+
+<div class="highlight highlight-source-js"><pre><span class="pl-en">cb</span>(<span class="pl-k">new</span> <span class="pl-en">Error</span>(<span class="pl-s"><span class="pl-pds">'</span>Internal authorization server unreachable<span class="pl-pds">'</span></span>));</pre></div>
+
+<p>So, here's an example of using an abstract HTTP authorization service:</p>
+
+<div class="highlight highlight-source-js"><pre><span class="pl-k">var</span> request <span class="pl-k">=</span> <span class="pl-c1">require</span>(<span class="pl-s"><span class="pl-pds">'</span>request<span class="pl-pds">'</span></span>);
+
+<span class="pl-k">var</span> Authorizer <span class="pl-k">=</span> <span class="pl-c1">exports</span>.<span class="pl-en">Authorizer</span> <span class="pl-k">=</span> <span class="pl-k">function</span>(<span class="pl-smi">opts</span>) {
+  <span class="pl-v">this</span>.<span class="pl-smi">myAuthorizationHost</span> <span class="pl-k">=</span> <span class="pl-smi">opts</span>.<span class="pl-smi">myAuthorizationHost</span>;
+};
+
+<span class="pl-c1">Authorizer</span>.<span class="pl-c1">prototype</span>.<span class="pl-en">authorize</span> <span class="pl-k">=</span> <span class="pl-k">function</span>(<span class="pl-smi">credentials</span>, <span class="pl-smi">cb</span>) {
+  <span class="pl-k">if</span> (<span class="pl-k">!</span><span class="pl-smi">credentials</span>.<span class="pl-c1">headers</span>.<span class="pl-smi">authorization</span> <span class="pl-k">||</span>
+      <span class="pl-k">!</span><span class="pl-smi">credentials</span>.<span class="pl-c1">headers</span>.<span class="pl-smi">authorization</span>.<span class="pl-c1">match</span>(<span class="pl-sr"><span class="pl-pds">/</span>Bearer <span class="pl-pds">/</span></span>)) {
+    <span class="pl-k">return</span> <span class="pl-en">cb</span>(<span class="pl-c1">null</span>, <span class="pl-c1">false</span>);
+  }
+
+  <span class="pl-en">request</span>({
+    url<span class="pl-k">:</span> <span class="pl-v">this</span>.<span class="pl-smi">myAuthorizationHost</span> <span class="pl-k">+</span> <span class="pl-s"><span class="pl-pds">'</span>/authorize<span class="pl-pds">'</span></span>,
+    method<span class="pl-k">:</span> <span class="pl-s"><span class="pl-pds">'</span>POST<span class="pl-pds">'</span></span>,
+    json<span class="pl-k">:</span> <span class="pl-c1">true</span>,
+    body<span class="pl-k">:</span> {
+      token<span class="pl-k">:</span> <span class="pl-smi">credentials</span>.<span class="pl-c1">headers</span>.<span class="pl-smi">authorization</span>.<span class="pl-c1">replace</span>(<span class="pl-s"><span class="pl-pds">'</span>Bearer <span class="pl-pds">'</span></span>, <span class="pl-s"><span class="pl-pds">'</span><span class="pl-pds">'</span></span>)
+    }
+  }, <span class="pl-k">function</span> (<span class="pl-smi">err</span>, <span class="pl-smi">res</span>, <span class="pl-smi">body</span>) {
+    <span class="pl-k">if</span> (err) {
+      <span class="pl-k">return</span> <span class="pl-en">cb</span>(err);
+    }
+
+    <span class="pl-k">if</span> (<span class="pl-smi">res</span>.<span class="pl-smi">statusCode</span> <span class="pl-k">!==</span> <span class="pl-c1">200</span>) {
+      <span class="pl-k">return</span> <span class="pl-en">cb</span>(<span class="pl-c1">null</span>, <span class="pl-c1">false</span>);
+    }
+
+    <span class="pl-k">return</span> <span class="pl-en">cb</span>(<span class="pl-c1">null</span>, <span class="pl-c1">true</span>);
+  });
+};</pre></div>
+
+<p>Since you have access to the <code>package.json</code>, if one is being sent by npm,
+your authorization can involve various checks based on it. For example, GitHub
+authorization plugin uses the <code>repository</code> field in connection with using GitHub
+token as the authorization token to determine if user has write access to the
+package they are trying to publish.</p>
+
+<h2>
+<a id="implementing-your-own-session-handler" class="anchor" href="#implementing-your-own-session-handler" aria-hidden="true"><span class="octicon octicon-link"></span></a>Implementing your own session handler</h2>
+
+<p>Session handler is used by the authentication webservice to persist user's name
+and email, keyed by the token created by the authentication strategy.</p>
+
+<p>The point of creating custom session handlers is to provide strategy-specific
+fallbacks for when user tries authorizing requests against an npm Enterprise
+instance without the token present in the session store.<br>
+For example, GitHub strategy provides a custom session store which first checks
+Redis for the token, and if it's not present there, it attempts to authenticate
+with GitHub with the same token. If GitHub authentication succeeds, user's
+GitHub email and login are persisted back to Redis.</p>
+
+<h3>
+<a id="npm-enterprise-session-flow" class="anchor" href="#npm-enterprise-session-flow" aria-hidden="true"><span class="octicon octicon-link"></span></a>npm Enterprise session flow</h3>
+
+<h4>
+<a id="authentication" class="anchor" href="#authentication" aria-hidden="true"><span class="octicon octicon-link"></span></a>Authentication</h4>
+
+<p>See <a href="#npm-enterprise-authentication-flow">npm Enterprise authentication flow</a>
+for exact description of the authentication flow.</p>
+
+<ol>
+<li>Frontdoor host calls the authentication webservice with a payload including
+the credentials user input.</li>
+<li>Authentication webservice calls its configured authentication strategy, passing
+the payload received to it.</li>
+<li>If authentication strategy succeeds, a token is returned.</li>
+<li>Session handler is called with a key (in form of <code>"user-" + token</code>), and
+session data to persist.</li>
+</ol>
+
+<h4>
+<a id="authorization" class="anchor" href="#authorization" aria-hidden="true"><span class="octicon octicon-link"></span></a>Authorization</h4>
+
+<p>See <a href="#npm-enterprise-authorization-flow">npm Enterprise authorization flow</a>
+for exact description of the authorization flow.</p>
+
+<ol>
+<li>With each request npm CLI makes it sends a token previously received from the
+frontdoor by the way of <code>npm login</code>.</li>
+<li>Unless specified otherwise, frontdoor checks the authorization token on
+every request by calling the authentication webservice.</li>
+<li>Authentication webservice calls its configured authorization strategy, passing
+the token and request context to it.</li>
+<li>Authorization strategy returns whether authorization was successful or not.</li>
+<li>If authorization succeeded, session store is called with a key (in form of
+<code>"user-" + token</code>) to retrieve.</li>
+</ol>
+
+<h3>
+<a id="session-handler-api" class="anchor" href="#session-handler-api" aria-hidden="true"><span class="octicon octicon-link"></span></a>Session handler API</h3>
+
+<p>Your module needs to export a <code>Session</code> property. <code>Session</code> is called with an
+object containing options for the running npm Enterprise instance and needs to
+return an object with <code>get</code> and <code>set</code> functions.</p>
+
+<div class="highlight highlight-source-js"><pre><span class="pl-k">var</span> Session <span class="pl-k">=</span> <span class="pl-c1">exports</span>.<span class="pl-en">Session</span> <span class="pl-k">=</span> <span class="pl-k">function</span>(<span class="pl-smi">opts</span>) {
+};
+
+<span class="pl-c1">Session</span>.<span class="pl-c1">prototype</span>.<span class="pl-en">get</span> <span class="pl-k">=</span> <span class="pl-k">function</span>(<span class="pl-smi">key</span>, <span class="pl-smi">cb</span>) {
+};
+
+<span class="pl-c1">Session</span>.<span class="pl-c1">prototype</span>.<span class="pl-en">set</span> <span class="pl-k">=</span> <span class="pl-k">function</span>(<span class="pl-smi">key</span>, <span class="pl-smi">session</span>, <span class="pl-smi">cb</span>) {
+};</pre></div>
+
+<p>or</p>
+
+<div class="highlight highlight-source-js"><pre><span class="pl-c1">exports</span>.<span class="pl-en">Session</span> <span class="pl-k">=</span> <span class="pl-k">function</span> (<span class="pl-smi">opts</span>) {
+  <span class="pl-k">function</span> <span class="pl-en">get</span>(<span class="pl-smi">key</span>, <span class="pl-smi">cb</span>) {
+  }
+
+  <span class="pl-k">function</span> <span class="pl-en">set</span>(<span class="pl-smi">key</span>, <span class="pl-smi">session</span>, <span class="pl-smi">cb</span>) {
+  }
+
+  <span class="pl-k">return</span> {
+    get<span class="pl-k">:</span> get,
+    set<span class="pl-k">:</span> set
+  };
+};</pre></div>
+
+<p>The <code>get</code> function is called with a key to retrieve from the session store.
+If getting the key from session store succeeds, you should call the callback
+with the session content.</p>
+
+<div class="highlight highlight-source-js"><pre><span class="pl-en">cb</span>(<span class="pl-c1">null</span>, {
+  name<span class="pl-k">:</span> <span class="pl-s"><span class="pl-pds">'</span>foobar<span class="pl-pds">'</span></span>,
+  email<span class="pl-k">:</span> <span class="pl-s"><span class="pl-pds">'</span>foobar@mycorp.com<span class="pl-pds">'</span></span>
+});</pre></div>
+
+<p>If getting the key fails, you should call the callback with an error.</p>
+
+<div class="highlight highlight-source-js"><pre><span class="pl-en">cb</span>(<span class="pl-k">new</span> <span class="pl-en">Error</span>(<span class="pl-s"><span class="pl-pds">'</span>No such key<span class="pl-pds">'</span></span>));</pre></div>
+
+<p>The <code>set</code> function is called with a key and data to persist into the session
+store. If storing the key succeeds, you should call the callback without an
+error. If storing the key fails, you should call the callback with an error.</p>
+
+<p>Here's an example of using a Redis-based session store, which fails over to
+an abstract HTTP-based authorization service:</p>
+
+<div class="highlight highlight-source-js"><pre><span class="pl-k">var</span> request <span class="pl-k">=</span> <span class="pl-c1">require</span>(<span class="pl-s"><span class="pl-pds">'</span>request<span class="pl-pds">'</span></span>);
+<span class="pl-k">var</span> redis <span class="pl-k">=</span> <span class="pl-c1">require</span>(<span class="pl-s"><span class="pl-pds">'</span>redis<span class="pl-pds">'</span></span>);
+
+<span class="pl-k">var</span> Session <span class="pl-k">=</span> <span class="pl-c1">exports</span>.<span class="pl-en">Session</span> <span class="pl-k">=</span> <span class="pl-k">function</span>(<span class="pl-smi">opts</span>) {
+  <span class="pl-v">this</span>.<span class="pl-smi">myAuthorizationHost</span> <span class="pl-k">=</span> <span class="pl-smi">opts</span>.<span class="pl-smi">myAuthorizationHost</span>;
+  <span class="pl-v">this</span>.<span class="pl-smi">redis</span> <span class="pl-k">=</span> <span class="pl-smi">redis</span>.<span class="pl-en">createClient</span>();
+};
+
+<span class="pl-c1">Session</span>.<span class="pl-c1">prototype</span>.<span class="pl-en">_lookup</span> <span class="pl-k">=</span> <span class="pl-k">function</span>(<span class="pl-smi">key</span>, <span class="pl-smi">cb</span>) {
+  <span class="pl-k">var</span> self <span class="pl-k">=</span> <span class="pl-v">this</span>;
+
+  <span class="pl-en">request</span>({
+    url<span class="pl-k">:</span> <span class="pl-v">this</span>.<span class="pl-smi">myAuthenticationHost</span> <span class="pl-k">+</span> <span class="pl-s"><span class="pl-pds">'</span>/authorize<span class="pl-pds">'</span></span>,
+    method<span class="pl-k">:</span> <span class="pl-s"><span class="pl-pds">'</span>POST<span class="pl-pds">'</span></span>,
+    json<span class="pl-k">:</span> <span class="pl-c1">true</span>,
+    body<span class="pl-k">:</span> {
+      token<span class="pl-k">:</span> <span class="pl-smi">key</span>.<span class="pl-c1">split</span>(<span class="pl-s"><span class="pl-pds">'</span>-<span class="pl-pds">'</span></span>).<span class="pl-c1">splice</span>(<span class="pl-c1">1</span>).<span class="pl-c1">join</span>(<span class="pl-s"><span class="pl-pds">'</span>-<span class="pl-pds">'</span></span>)
+    }
+  }, <span class="pl-k">function</span> (<span class="pl-smi">err</span>, <span class="pl-smi">res</span>, <span class="pl-smi">body</span>) {
+    <span class="pl-k">if</span> (err) {
+      <span class="pl-k">return</span> <span class="pl-en">cb</span>(err);
+    }
+
+    <span class="pl-k">if</span> (<span class="pl-smi">res</span>.<span class="pl-smi">statusCode</span> <span class="pl-k">!==</span> <span class="pl-c1">200</span>) {
+      <span class="pl-k">return</span> <span class="pl-en">cb</span>(<span class="pl-k">new</span> <span class="pl-en">Error</span>(<span class="pl-s"><span class="pl-pds">'</span>Authorization failed<span class="pl-pds">'</span></span>));
+    }
+
+    <span class="pl-k">var</span> session <span class="pl-k">=</span> {
+      name<span class="pl-k">:</span> <span class="pl-smi">body</span>.<span class="pl-smi">username</span>,
+      email<span class="pl-k">:</span> <span class="pl-smi">body</span>.<span class="pl-smi">email</span>
+    };
+
+    <span class="pl-smi">self</span>.<span class="pl-en">set</span>(key, session, <span class="pl-k">function</span> (<span class="pl-smi">err</span>) {
+      <span class="pl-k">if</span> (err) {
+        <span class="pl-k">return</span> <span class="pl-en">cb</span>(err);
+      }
+      <span class="pl-en">cb</span>(<span class="pl-c1">null</span>, session);
+    });
+  });
+};
+
+<span class="pl-c1">Session</span>.<span class="pl-c1">prototype</span>.<span class="pl-en">get</span> <span class="pl-k">=</span> <span class="pl-k">function</span>(<span class="pl-smi">key</span>, <span class="pl-smi">cb</span>) {
+  <span class="pl-k">var</span> self <span class="pl-k">=</span> <span class="pl-v">this</span>;
+  <span class="pl-v">this</span>.<span class="pl-smi">client</span>.<span class="pl-en">get</span>(key, <span class="pl-k">function</span>(<span class="pl-smi">err</span>, <span class="pl-smi">data</span>) {
+    <span class="pl-k">if</span> (err) <span class="pl-k">return</span> <span class="pl-en">cb</span>(err);
+    <span class="pl-k">if</span> (data) <span class="pl-k">return</span> <span class="pl-en">cb</span>(<span class="pl-c1">null</span>, <span class="pl-smi">JSON</span>.<span class="pl-c1">parse</span>(data));
+    <span class="pl-smi">self</span>.<span class="pl-en">_lookup</span>(key, cb);
+  });
+};
+
+<span class="pl-c1">Session</span>.<span class="pl-c1">prototype</span>.<span class="pl-en">set</span> <span class="pl-k">=</span> <span class="pl-k">function</span>(<span class="pl-smi">key</span>, <span class="pl-smi">session</span>, <span class="pl-smi">cb</span>) {
+  <span class="pl-v">this</span>.<span class="pl-smi">client</span>.<span class="pl-en">set</span>(key, <span class="pl-smi">JSON</span>.<span class="pl-en">stringify</span>(session), cb);
+};</pre></div>
+      </section>
+      <footer>
+        <p>This project is maintained by <a href="https://github.com/influencia0406">influencia0406</a></p>
+        <p><small>Hosted on GitHub Pages &mdash; Theme by <a href="https://github.com/orderedlist">orderedlist</a></small></p>
+      </footer>
+    </div>
+    <script src="javascripts/scale.fix.js"></script>
+    
+  </body>
+</html>
